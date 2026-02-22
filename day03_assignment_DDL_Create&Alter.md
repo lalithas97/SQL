@@ -180,26 +180,65 @@ ADD audit_id NUMBER(10)
 1. **H1.** Create a table `emp_dept_summary` that has one row per department with columns department_id, department_name (from hr.departments), and a computed column total_sal (use a subquery or join to get SUM(salary) per department).  
    **Hint:** CREATE TABLE ... AS SELECT d.department_id, d.department_name, (SELECT SUM(salary) FROM hr.employees e WHERE e.department_id = d.department_id) AS total_sal FROM hr.departments d;
 
+CREATE TABLE emp_dept_summary AS
+SELECT  d.department_id,
+        d.department_name,
+        (SELECT SUM(e.salary)
+            FROM hr.employees e
+            WHERE e.department_id = d.department_id) AS total_sal
+FROM hr.departments d;
+
+<!-- 
+The query creates a new table where each row represents one department, and for every department it calculates the sum of salaries of employees who belong to that department by matching department_id between departments and employees. -->
+
 2. **H2.** Create table `emp_backup_80` from hr.employees for department 80, but only columns employee_id, first_name, last_name, salary, commission_pct.  
    **Hint:** CREATE TABLE emp_backup_80 AS SELECT employee_id, first_name, last_name, salary, commission_pct FROM hr.employees WHERE department_id = 80;
 CREATE TABLE emp_backup_80 AS
 SELECT EMPLOYEE_ID, first_name, last_name, salary, commission_pct 
 FROM hr.employees
-WHERE department_id = 80
+WHERE department_id = 80;
 
 3. **H3.** Add a column `full_name` to a backup table and populate it with first_name || ' ' || last_name for all existing rows (requires UPDATE after ADD; then you could add a default for new rows).  
    **Hint:** ALTER TABLE ... ADD full_name VARCHAR2(50); UPDATE ... SET full_name = first_name || ' ' || last_name;
 
+<!-- Add New Column -->
+ALTER TABLE hr_employees_archive
+ADD full_name VARCHAR2(50);
+
+<!-- Populate existing rows -->
+UPDATE hr_employees_archive
+SET full_name = NVL(first_name, '') || ' ' || NVL(last_name, '');
+
 4. **H4.** Create a table that has department_id, department_name, and a column `manager_name` (you would need to join hr.departments with hr.employees on manager_id to get manager's name).  
    **Hint:** CREATE TABLE dept_with_mgr AS SELECT d.department_id, d.department_name, e.first_name || ' ' || e.last_name AS manager_name FROM hr.departments d LEFT JOIN hr.employees e ON d.manager_id = e.employee_id;
+
+CREATE TABLE dept_with_mgr AS
+SELECT  d.department_id,
+        d.department_name,
+        e.first_name || ' ' || e.last_name AS manager_name
+FROM hr.departments d
+LEFT JOIN hr.employees e
+ON d.manager_id = e.employee_id;
 
 5. **H5.** Create table `emp_job_salary` with columns job_id, min_sal, max_sal, avg_sal (use GROUP BY job_id with MIN, MAX, AVG on salary from hr.employees).  
    **Hint:** CREATE TABLE emp_job_salary AS SELECT job_id, MIN(salary) AS min_sal, MAX(salary) AS max_sal, AVG(salary) AS avg_sal FROM hr.employees GROUP BY job_id;
 
+CREATE TABLE emp_job_salary AS
+SELECT  job_id,
+        MIN(salary) AS min_sal,
+        MAX(salary) AS max_sal,
+        AVG(salary) AS avg_sal
+FROM hr.employees
+GROUP BY job_id;
+
+
 6. **H6.** Add a column that has a DEFAULT expression using SYSDATE and rename an existing column in the same table (two statements).  
    **Hint:** ALTER ADD ... DEFAULT SYSDATE; ALTER RENAME COLUMN ... TO ...;
-ALTER ADD hire_date DEFAULT SYSDATE
-ALTER RENAME COLUMN hire_date TO hire_dates
+ALTER TABLE hr_employees_archive
+ADD created_date DATE DEFAULT SYSDATE;
+
+ALTER TABLE hr_employees_archive
+RENAME COLUMN hire_date TO hire_dates;
 
 7. **H7.** Create a table `emp_top_sal` with the same structure as hr.employees but only rows where salary is in the top 10 (use subquery: WHERE salary IN (SELECT ... ORDER BY salary DESC FETCH FIRST 10 ROWS ONLY)).  
    **Hint:** CREATE TABLE emp_top_sal AS SELECT * FROM hr.employees WHERE salary IN (SELECT salary FROM hr.employees ORDER BY salary DESC FETCH FIRST 10 ROWS ONLY); Note: may duplicate if ties
@@ -208,10 +247,18 @@ SELECT *
 FROM hr.employees
 WHERE salary IN 
 (SELECT salary FROM hr.employees ORDER BY salary DESC
-FETCH FIRST 10 ROWS ONLY)
+FETCH FIRST 10 ROWS ONLY);
 
 8. **H8.** Create table `dept_emp_list` with department_id, department_name, and employee_count (count of employees per department).  
    **Hint:** CREATE TABLE dept_emp_list AS SELECT d.department_id, d.department_name, COUNT(e.employee_id) AS employee_count FROM hr.departments d LEFT JOIN hr.employees e ON e.department_id = d.department_id GROUP BY d.department_id, d.department_name;
+CREATE TABLE dept_emp_list AS
+SELECT  d.department_id,
+        d.department_name,
+        COUNT(e.employee_id) AS employee_count
+FROM hr.departments d
+LEFT JOIN hr.employees e
+ON e.department_id = d.departmetn_id
+GROUP BY d.department_id, d.department_name;
 
 9. **H9.** Drop two columns from your backup table in one statement (if Oracle supports: ALTER TABLE ... DROP (col1, col2)).  
    **Hint:** ALTER TABLE ... DROP (col1, col2); or two separate DROP COLUMN statements.
@@ -231,8 +278,29 @@ WHERE manager_id IS NOT NULL
 11. **H11.** Add a column `salary_band` VARCHAR2(10) and update it with CASE (Low/Medium/High) based on salary; then add DEFAULT 'Medium' for new rows.  
     **Hint:** ADD column; UPDATE ... SET salary_band = CASE ...; then MODIFY column DEFAULT 'Medium' if needed.
 
+ALTER TABLE hr_employees_archive
+ADD salary_band VARCHAR2(10);
+
+UPDATE hr_employees_archive
+SET salary_band = 
+    CASE
+        WHEN salary < 5000 THEN 'Low'
+        WHEN salary BETWEEN 5000 AND 10000 THEN 'Medium'
+        ELSE 'High'
+    END;
+
+ALTER TABLE hr_employees_archive
+MODIFY salary_band DEFAULT 'Medium';
+
 12. **H12.** Create table `emp_duplicate_check` with employee_id, first_name, last_name, and a column `dup_count` showing how many employees share the same first_name and last_name (use analytic or self-join in CTAS).  
     **Hint:** Use a subquery with COUNT(*) OVER (PARTITION BY first_name, last_name) AS dup_count in the SELECT.
+
+CREATE TABLE emp_duplicate_check AS
+SELECT  employee_id,
+        first_name,
+        last_name,
+        COUNT(*) OVER (PARTITION BY first_name, last_name) AS dup_count
+FROM hr.employees;
 
 13. **H13.** Create an empty table with the same structure as hr.employees and name it `emp_import_staging`.  
     **Hint:** CREATE TABLE emp_import_staging AS SELECT * FROM hr.employees WHERE 1=0;
@@ -244,12 +312,24 @@ WHERE 1 = 0;
 14. **H14.** Modify the data type of a column from NUMBER to VARCHAR2 (e.g. store employee_id as string). Oracle may require add new column, update, drop old, rename.  
     **Hint:** Add new VARCHAR2 column; UPDATE set new = TO_CHAR(old); DROP old; RENAME new to old.
 
+ALTER TABLE hr_employees_archive
+ADD employee_id_str VARCHAR2(20);
+
+UPDATE hr_employees_archive
+SET employee_id_str = TO_CHAR(employee_id);
+
+ALTER TABLE hr_employees_archive
+DROP COLUMN employee_id;
+
+ALTER TABLE hr_employees_archive
+RENAME COLUMN employee_id_str TO employee_id;
+
 15. **H15.** Create table `dept_location_1700` from hr.departments where location_id = 1700.  
     **Hint:** CREATE TABLE dept_location_1700 AS SELECT * FROM hr.departments WHERE location_id = 1700;
 CREATE TABLE dept_location_1700 AS
 SELECT *
 FROM hr.departments
-WHERE location_id = 1700
+WHERE location_id = 1700;
 
 16. **H16.** Add column `version` NUMBER DEFAULT 1 and `last_modified` DATE DEFAULT SYSDATE to backup table.  
     **Hint:** Two ALTER TABLE ADD statements.
@@ -270,6 +350,13 @@ WHERE salary BETWEEN 5000 AND 15000;
 18. **H18.** Truncate a table and then add a new column. Verify the table has 0 rows.  
     **Hint:** TRUNCATE TABLE ...; ALTER TABLE ... ADD ...; SELECT COUNT(*) FROM ...;
 
+TRUNCATE TABLE emp_salary_range;
+
+ALTER TABLE emp_salary_range
+ADD remarks VARCHAR2(100);
+
+SELECT COUNT(*) FROM emp_salary_range;
+
 19. **H19.** Create table `job_list` with distinct job_id from hr.employees and a literal column `category` with value 'HR'.  
     **Hint:** CREATE TABLE job_list AS SELECT DISTINCT job_id, 'HR' AS category FROM hr.employees;
 CREATE TABLE job_list AS
@@ -280,6 +367,15 @@ FROM hr.employees;
 20. **H20.** Drop table `emp_structure` if it exists (Oracle: use PL/SQL EXECUTE IMMEDIATE 'DROP TABLE emp_structure'; with exception when table does not exist, or check user_tables first).  
     **Hint:** BEGIN EXECUTE IMMEDIATE 'DROP TABLE emp_structure'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END; (942 = table does not exist).
 
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE emp_structure';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN
+            RAISE;
+        END IF;
+END;
+/
 ---
 
 [← Back to Learning Plan](../30-day-sql-plsql-learning-plan.md) | [Tutorial](../tutorials/day03_ddl_basics.md)
